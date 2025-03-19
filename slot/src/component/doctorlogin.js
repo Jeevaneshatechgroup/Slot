@@ -20,9 +20,9 @@ const DoctorLoginForm = () => {
       // Save the token in localStorage or cookies
       localStorage.setItem("doctor_token", response.data.token);
 
-      // Redirect after successful login
+      // Redirect to doctor's dashboard after successful login
       alert("Login successful!");
-      navigate("/");
+      navigate("/doctor-dashboard"); // Update this line to redirect to the dashboard page
     } catch (err) {
       alert(err.response.data.message);
     }

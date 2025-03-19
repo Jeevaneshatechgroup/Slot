@@ -1,24 +1,15 @@
-// PatientRegistrationForm.js
 import React, { useState } from "react";
 import axios from "axios";
-
-// Function to generate tokens for a selected time slot
-const generateTokens = (timeSlot) => {
-  const maxTokens = 25;
-  const slotTokens = [];
-  for (let i = 1; i <= maxTokens; i++) {
-    slotTokens.push(`Token ${i}`);
-  }
-  return slotTokens;
-};
 
 const PatientRegistrationForm = () => {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState("");
   const [selectedDoctor, setSelectedDoctor] = useState("");
-  const [tokens, setTokens] = useState([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [token, setToken] = useState(""); // State to store the generated token
+  const [successMessage, setSuccessMessage] = useState(""); // For success message
+  const [errorMessage, setErrorMessage] = useState(""); // For error message (e.g., slot full)
 
   const doctors = [
     { name: "Dr. John Smith", specialty: "Cardiologist" },
@@ -27,9 +18,7 @@ const PatientRegistrationForm = () => {
   ];
 
   const handleTimeSlotChange = (e) => {
-    const timeSlot = e.target.value;
-    setSelectedTimeSlot(timeSlot);
-    setTokens(generateTokens(timeSlot));
+    setSelectedTimeSlot(e.target.value);
   };
 
   const handleDoctorChange = (e) => {
@@ -47,9 +36,15 @@ const PatientRegistrationForm = () => {
         selectedDoctor,
         selectedTimeSlot,
       });
-      alert("Patient registered successfully");
+
+      // Show success message with the token
+      setSuccessMessage(`Successfully registered! Your token: ${response.data.token}`);
+      setToken(response.data.token); // Update token state
+      setErrorMessage(""); // Reset error message if registration is successful
     } catch (err) {
-      alert(err.response.data.message);
+      // Handle error messages from the backend
+      setSuccessMessage(""); // Reset success message on error
+      setErrorMessage(err.response.data.message); // Set the error message (slot full or any other message)
     }
   };
 
@@ -59,27 +54,58 @@ const PatientRegistrationForm = () => {
       <form onSubmit={handleSubmit}>
         <div className="mb-3">
           <label htmlFor="patientName" className="form-label">Full Name</label>
-          <input type="text" className="form-control" id="patientName" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your full name" />
+          <input
+            type="text"
+            className="form-control"
+            id="patientName"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Enter your full name"
+          />
         </div>
         <div className="mb-3">
           <label htmlFor="patientEmail" className="form-label">Email Address</label>
-          <input type="email" className="form-control" id="patientEmail" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" />
+          <input
+            type="email"
+            className="form-control"
+            id="patientEmail"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Enter your email"
+          />
         </div>
         <div className="mb-3">
           <label htmlFor="patientPhone" className="form-label">Phone Number</label>
-          <input type="tel" className="form-control" id="patientPhone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Enter your phone number" />
+          <input
+            type="tel"
+            className="form-control"
+            id="patientPhone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Enter your phone number"
+          />
         </div>
         <div className="mb-3">
           <label htmlFor="timeSlot" className="form-label">Select Time Slot</label>
-          <select id="timeSlot" className="form-select" onChange={handleTimeSlotChange}>
-            <option>Select time slot</option>
+          <select
+            id="timeSlot"
+            className="form-select"
+            onChange={handleTimeSlotChange}
+            value={selectedTimeSlot}
+          >
+            <option value="">Select time slot</option>
             <option value="9am-1pm">9 AM - 1 PM</option>
             <option value="3pm-7pm">3 PM - 7 PM</option>
           </select>
         </div>
         <div className="mb-3">
           <label htmlFor="doctorSelect" className="form-label">Select Doctor</label>
-          <select id="doctorSelect" className="form-select" onChange={handleDoctorChange} value={selectedDoctor}>
+          <select
+            id="doctorSelect"
+            className="form-select"
+            onChange={handleDoctorChange}
+            value={selectedDoctor}
+          >
             <option value="">Select a Doctor</option>
             {doctors.map((doctor, index) => (
               <option key={index} value={doctor.name}>
@@ -91,14 +117,17 @@ const PatientRegistrationForm = () => {
         <button type="submit" className="btn btn-primary">Register</button>
       </form>
 
-      {selectedTimeSlot && (
-        <div className="mt-4">
-          <h4>Tokens for {selectedTimeSlot}:</h4>
-          <ul>
-            {tokens.map((token, index) => (
-              <li key={index}>{token}</li>
-            ))}
-          </ul>
+      {/* Success Message */}
+      {successMessage && (
+        <div className="alert alert-success mt-4" role="alert">
+          {successMessage}
+        </div>
+      )}
+
+      {/* Error Message */}
+      {errorMessage && (
+        <div className="alert alert-danger mt-4" role="alert">
+          {errorMessage}
         </div>
       )}
     </div>
