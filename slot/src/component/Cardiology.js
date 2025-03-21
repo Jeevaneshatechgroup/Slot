@@ -25,7 +25,7 @@ const CardiologyPage = () => {
     fetchCardiologyPatients();
   }, []);
 
-  // Function to handle the deletion of a patient
+  
   const deletePatient = async () => {
     try {
       const response = await axios.delete(`http://localhost:5000/api/patients/${selectedPatientId}`);
