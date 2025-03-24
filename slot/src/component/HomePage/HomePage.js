@@ -38,6 +38,14 @@ const HomePage = () => {
             >
               Patient Registration
             </Link>
+            {/* Add Get Token Button */}
+            <Link
+              to="/get-token"
+              className="btn btn-success m-3 animate__animated animate__fadeIn"
+              style={{ animationDuration: "1s", animationDelay: "2s" }}  // Slight delay for the Get Token button
+            >
+              Get Token
+            </Link>
           </>
         )}
       </div>

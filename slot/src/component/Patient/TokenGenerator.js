@@ -1,12 +1,11 @@
 import React, { useState } from "react";
 import axios from "axios";
 
-const PatientRegistrationForm = () => {
+const TokenGeneratorForm = ({ uniqueId }) => {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState("");
   const [selectedDoctor, setSelectedDoctor] = useState("");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [medicalId, setMedicalId] = useState(""); // State to store the medical ID
+  const [patientName, setPatientName] = useState(""); // State to store fetched patient name
   const [token, setToken] = useState(""); // State to store the generated token
   const [successMessage, setSuccessMessage] = useState(""); // For success message
   const [errorMessage, setErrorMessage] = useState(""); // For error message (e.g., slot full)
@@ -25,66 +24,54 @@ const PatientRegistrationForm = () => {
     setSelectedDoctor(e.target.value);
   };
 
+  const handleMedicalIdChange = async (e) => {
+    const id = e.target.value;
+    setMedicalId(id);
+
+    if (id) {
+      try {
+        // Make API call to fetch patient data based on the entered medical ID
+        const response = await axios.get(`http://localhost:5000/api/patient/${id}`);
+        setPatientName(response.data.name); // Assuming the response contains the patient's name
+        setErrorMessage(""); // Clear any previous error
+      } catch (err) {
+        setPatientName(""); // Clear patient name on error
+        setErrorMessage("Invalid Medical ID. Please try again.");
+      }
+    } else {
+      setPatientName(""); // Clear patient name if no medical ID is entered
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Check if all fields are selected and valid
+    if (!medicalId || !selectedDoctor || !selectedTimeSlot) {
+      setErrorMessage("Please select all fields and enter a valid medical ID.");
+      return;
+    }
+
     try {
-      const response = await axios.post("http://localhost:5000/api/patient/register", {
-        name,
-        email,
-        phone,
+      const response = await axios.post("http://localhost:5000/api/token/generate", {
+        uniqueId: medicalId,  // Pass the entered medical ID here
         selectedDoctor,
         selectedTimeSlot,
       });
 
-      // Show success message with the token
-      setSuccessMessage(`Successfully registered! Your token: ${response.data.token}`);
-      setToken(response.data.token); // Update token state
-      setErrorMessage(""); // Reset error message if registration is successful
+      setToken(response.data.token);
+      setSuccessMessage(`Your token: ${response.data.token}`);
+      setErrorMessage(""); // Reset error message
     } catch (err) {
-      // Handle error messages from the backend
       setSuccessMessage(""); // Reset success message on error
-      setErrorMessage(err.response.data.message); // Set the error message (slot full or any other message)
+      setErrorMessage(err.response?.data?.message || "Failed to generate token");
     }
   };
 
   return (
     <div className="container">
-      <h2 className="mt-4">Patient Registration</h2>
+      <h2 className="mt-4">Token Generator</h2>
       <form onSubmit={handleSubmit}>
-        <div className="mb-3">
-          <label htmlFor="patientName" className="form-label">Full Name</label>
-          <input
-            type="text"
-            className="form-control"
-            id="patientName"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Enter your full name"
-          />
-        </div>
-        <div className="mb-3">
-          <label htmlFor="patientEmail" className="form-label">Email Address</label>
-          <input
-            type="email"
-            className="form-control"
-            id="patientEmail"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your email"
-          />
-        </div>
-        <div className="mb-3">
-          <label htmlFor="patientPhone" className="form-label">Phone Number</label>
-          <input
-            type="tel"
-            className="form-control"
-            id="patientPhone"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="Enter your phone number"
-          />
-        </div>
         <div className="mb-3">
           <label htmlFor="timeSlot" className="form-label">Select Time Slot</label>
           <select
@@ -114,7 +101,34 @@ const PatientRegistrationForm = () => {
             ))}
           </select>
         </div>
-        <button type="submit" className="btn btn-primary">Register</button>
+        {/* Medical ID Field */}
+        <div className="mb-3">
+          <label htmlFor="medicalId" className="form-label">Medical ID</label>
+          <input
+            type="text"
+            className="form-control"
+            id="medicalId"
+            value={medicalId}
+            onChange={handleMedicalIdChange}
+            placeholder="Enter your Medical ID"
+          />
+        </div>
+        
+        {/* Display Patient Name if available */}
+        {patientName && (
+          <div className="mb-3">
+            <label className="form-label">Patient Name</label>
+            <input
+              type="text"
+              className="form-control"
+              value={patientName}
+              disabled
+              readOnly
+            />
+          </div>
+        )}
+
+        <button type="submit" className="btn btn-primary">Generate Token</button>
       </form>
 
       {/* Success Message */}
@@ -134,4 +148,4 @@ const PatientRegistrationForm = () => {
   );
 };
 
-export default PatientRegistrationForm;
+export default TokenGeneratorForm;

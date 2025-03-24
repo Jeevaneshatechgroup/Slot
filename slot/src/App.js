@@ -1,12 +1,13 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import HomePage from "./component/HomePage";
-import DoctorLoginForm from "./component/doctorlogin";
-import DoctorDashboard from "./component/DoctorDashboard";
-import CardiologyPage from "./component/Cardiology"; // Add CardiologyPage import
-import DermatologyPage from "./component/Dermatology"; // Add DermatologyPage import
-import NeurologyPage from "./component/Neurology"; 
-import PatientRegistrationForm from "./component/patientRegistration";
+import HomePage from "./component/HomePage/HomePage";
+import DoctorLoginForm from "./component/Doctor/doctorlogin";
+import DoctorDashboard from "./component/Doctor/DoctorDashboard";
+import CardiologyPage from "./component/Doctor/Cardiology/Cardiology"; 
+import DermatologyPage from "./component/Doctor/Dermatology/Dermatology";
+import NeurologyPage from "./component/Doctor/Neurology/Neurology"; 
+import PatientRegistrationForm from "./component/Patient/patientRegistration";
+import TokenGeneratorForm from './component/Patient/TokenGenerator';
 
 const App = () => {
   return (
@@ -19,6 +20,7 @@ const App = () => {
         <Route path="/Neurology" element={<NeurologyPage />} />
         <Route path="/doctor-login" element={<DoctorLoginForm />} />
         <Route path="/patient-register" element={<PatientRegistrationForm />} />
+        <Route path="/get-token" element={<TokenGeneratorForm/>}/>
       </Routes>
     </Router>
   );

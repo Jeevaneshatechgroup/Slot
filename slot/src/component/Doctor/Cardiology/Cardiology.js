@@ -25,32 +25,35 @@ const CardiologyPage = () => {
     fetchCardiologyPatients();
   }, []);
 
-  // Function to handle the deletion of a patient
-  const deletePatient = async () => {
-    try {
-      const response = await axios.delete(`http://localhost:5000/api/patients/${selectedPatientId}`);
-      
-      // Update state to remove the patient from the list
-      setPatients(patients.filter((patient) => patient._id !== selectedPatientId));
-      
-      // Set success message
-      setSuccessMessage(response.data.message);
-
-      // Hide the success message after 3 seconds
-      setTimeout(() => {
-        setSuccessMessage("");
-      }, 3000);
-
-      // Close the modal
-      setDeleteModalVisible(false);
-    } catch (err) {
-      setError("Error deleting patient.");
-    }
+  // Function to show the delete confirmation modal
+  const handleDeleteClick = (uniqueId) => {
+    setSelectedPatientId(uniqueId);
+    setDeleteModalVisible(true);
   };
 
-  const handleDeleteClick = (patientId) => {
-    setSelectedPatientId(patientId);
-    setDeleteModalVisible(true);
+  // Function to delete a patient's token and clear fields
+  const deletePatient = async () => {
+    try {
+      console.log("Clearing fields for patient with uniqueId:", selectedPatientId);
+      const response = await axios.delete(`http://localhost:5000/api/patients/${selectedPatientId}`);
+  
+      // Update the patient state to reflect the cleared fields
+      setPatients(patients.map((patient) =>
+        patient.uniqueId === selectedPatientId ? { 
+          ...patient, 
+          token: null, 
+          selectedDoctor: null, 
+          selectedTimeSlot: null 
+        } : patient
+      ));
+  
+      setSuccessMessage(response.data.message);
+      setTimeout(() => setSuccessMessage(""), 3000);
+      setDeleteModalVisible(false);
+    } catch (err) {
+      console.error("Error clearing patient's fields:", err);
+      setError("Error clearing patient's fields.");
+    }
   };
 
   return (
@@ -64,11 +67,8 @@ const CardiologyPage = () => {
         </div>
       )}
       {error && <Alert variant="danger">{error}</Alert>}
-      
-      {/* Display the success message if it's set */}
       {successMessage && <Alert variant="success">{successMessage}</Alert>}
 
-      {/* Display the "No patients" message if no patients are available */}
       {patients.length === 0 && !loading && !error ? (
         <Alert variant="info">No patients available for Cardiology.</Alert>
       ) : (
@@ -76,7 +76,7 @@ const CardiologyPage = () => {
           <Col>
             <ListGroup>
               {patients.map((patient) => (
-                <ListGroup.Item key={patient._id}>
+                <ListGroup.Item key={patient.uniqueId}>
                   <h5>{patient.name}</h5>
                   <p>Email: {patient.email}</p>
                   <p>Phone: {patient.phone}</p>
@@ -84,9 +84,9 @@ const CardiologyPage = () => {
                   <p>Token: {patient.token}</p>
                   <Button
                     variant="success"
-                    onClick={() => handleDeleteClick(patient._id)}
+                    onClick={() => handleDeleteClick(patient.uniqueId)} // Show modal when the delete button is clicked
                   >
-                      Patient Cleared
+                    Clear Token & Fields
                   </Button>
                 </ListGroup.Item>
               ))}
@@ -95,18 +95,18 @@ const CardiologyPage = () => {
         </Row>
       )}
 
-      {/* Modal for patient deletion confirmation */}
+      {/* Confirmation Modal */}
       <Modal show={deleteModalVisible} onHide={() => setDeleteModalVisible(false)}>
         <Modal.Header closeButton>
-          <Modal.Title>Confirm Attended Patient?</Modal.Title>
+          <Modal.Title>Confirm Clear Patient's Token and Fields</Modal.Title>
         </Modal.Header>
-        <Modal.Body>Are you sure you have attended this patient?</Modal.Body>
+        <Modal.Body>Are you sure you want to clear this patient's token, doctor, and time slot?</Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setDeleteModalVisible(false)}>
             Cancel
           </Button>
           <Button variant="success" onClick={deletePatient}>
-            clear
+            Clear Fields
           </Button>
         </Modal.Footer>
       </Modal>

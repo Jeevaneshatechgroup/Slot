@@ -14,10 +14,7 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.log("MongoDB connection error:", err));
 
@@ -30,16 +27,21 @@ const doctorSchema = new mongoose.Schema({
 const Doctor = mongoose.model("Doctor", doctorSchema);
 
 // Patient Schema
+// Patient Schema (without selectedDoctor and selectedTimeSlot)
 const patientSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true },
   phone: { type: String, required: true },
-  selectedDoctor: { type: String, required: true },
-  selectedTimeSlot: { type: String, required: true },
-  token: { type: String, required: true }, // Added token field
+  uniqueId: { type: String, required: true },
+  token: { type: String, required: true },
+  selectedDoctor: { type: String, required: false }, // Store selected doctor
+  selectedTimeSlot: { type: String, required: false },
 });
 
 const Patient = mongoose.model("Patient", patientSchema);
+
+
+
 
 // Token Count Schema (for managing token numbers for each doctor and time slot)
 const tokenCountSchema = new mongoose.Schema({
@@ -49,6 +51,14 @@ const tokenCountSchema = new mongoose.Schema({
 });
 
 const TokenCount = mongoose.model("TokenCount", tokenCountSchema);
+
+const tokenSchemaa = new mongoose.Schema({
+  doctorName: { type: String, required: true },
+  timeSlot: { type: String, required: true },
+  lastToken: { type: Number, default: 0 }, // Track the last token generated for this slot and doctor
+});
+
+const Token = mongoose.model("Token", tokenSchemaa);
 
 // Doctor Login Route (authentication using .env credentials)
 app.post("/api/doctor/login", async (req, res) => {
@@ -70,29 +80,7 @@ app.post("/api/doctor/login", async (req, res) => {
   }
 });
 
-// Patient Registration Route
-app.post('/api/verify-pin/:specialty', (req, res) => {
-  const { specialty } = req.params;
-  const { pin } = req.body;
-
-  let validPin = false;
-
-  // Verify PIN based on specialty
-  if (specialty === 'cardiologist' && pin === process.env.CARDIO_PIN) {
-    validPin = true;
-  } else if (specialty === 'dermatologist' && pin === process.env.DERMOTO_PIN) {
-    validPin = true;
-  } else if (specialty === 'neurologist' && pin === process.env.NEURO_PIN) {
-    validPin = true;
-  }
-
-  if (validPin) {
-    return res.status(200).json({ message: 'PIN verified successfully' });
-  } else {
-    return res.status(400).json({ message: 'Invalid PIN' });
-  }
-});
-// API to fetch Cardiologist appointments and available time slots
+// API to fetch patients based on selected doctor
 app.get("/api/patients/:specialty", async (req, res) => {
   const { specialty } = req.params;
 
@@ -104,85 +92,167 @@ app.get("/api/patients/:specialty", async (req, res) => {
     res.status(500).json({ message: "Error fetching patients." });
   }
 });
+
+// API to fetch available time slots for a doctor (using TokenCount)
+app.get("/api/timeSlots/:doctorName", async (req, res) => {
+  const { doctorName } = req.params;
+
+  try {
+    // Fetch available time slots for the doctor
+    const timeSlots = await TokenCount.find({ doctorName: doctorName });
+    res.json(timeSlots);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching time slots." });
+  }
+});
+
+
+// Token Generation Route (for managing token numbers for doctor slots)
+app.post('/api/patient/register', async (req, res) => {
+  const { name, email, phone, uniqueId } = req.body;
+
+  console.log("Registration request body:", req.body);
+
+  // Validate input fields
+  if (!name || !email || !phone || !uniqueId) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
+
+  try {
+    // Check if the unique ID already exists in the database
+    const existingPatient = await Patient.findOne({ uniqueId });
+    if (existingPatient) {
+      return res.status(400).json({ message: "This unique ID already exists" });
+    }
+
+    // Create a new patient object
+    const newPatient = new Patient({
+      name,
+      email,
+      phone,
+      uniqueId,
+      token: `TOKEN-${uniqueId}-${Date.now()}`,
+    });
+
+    // Save the patient to the database
+    await newPatient.save();
+
+    // Send a success response
+    return res.status(200).json({
+      message: "Patient registered successfully",
+      token: newPatient.token, // Return the generated token
+    });
+  } catch (err) {
+    console.error("Error registering patient:", err); // Log the error
+    return res.status(500).json({ message: "Error registering patient" });
+  }
+});
+
+
+// Fetch patient by uniqueId
+app.get('/api/patient/:uniqueId', async (req, res) => {
+  const { uniqueId } = req.params;
+
+  try {
+    const patient = await Patient.findOne({ uniqueId });
+
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found with the provided Medical ID" });
+    }
+
+    // If the patient is found, return the patient data (excluding sensitive info if necessary)
+    return res.status(200).json({ name: patient.name, uniqueId: patient.uniqueId });
+
+  } catch (err) {
+    console.error("Error fetching patient:", err);
+    return res.status(500).json({ message: "Error fetching patient" });
+  }
+});
+app.post('/api/token/generate', async (req, res) => {
+  const { uniqueId, selectedDoctor, selectedTimeSlot } = req.body;
+
+  try {
+    // Check if the patient exists
+    const patient = await Patient.findOne({ uniqueId });
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found with the provided Medical ID" });
+    }
+
+    // Get or create a record for this doctor and time slot combination
+    let tokenRecord = await Token.findOne({ doctorName: selectedDoctor, timeSlot: selectedTimeSlot });
+
+    if (!tokenRecord) {
+      // If no token record exists for this doctor and time slot, create a new one and start from 1
+      tokenRecord = new Token({
+        doctorName: selectedDoctor,
+        timeSlot: selectedTimeSlot,
+        lastToken: 1, // Starting token is 1
+      });
+      await tokenRecord.save();
+    } else {
+      // If tokenRecord exists, check if the last token is greater than or equal to 25
+      if (tokenRecord.lastToken >= 25) {
+        return res.status(400).json({ message: "Sorry, all slots are full for this time slot and doctor." });
+      }
+    }
+
+    // Generate a new token
+    const newToken = tokenRecord.lastToken;
+
+    // Increment the last token for the next patient
+    tokenRecord.lastToken = newToken + 1;
+    await tokenRecord.save();
+
+    // Store the generated token, selected doctor, and selected time slot in the patient's record
+    patient.token = newToken.toString();
+    patient.selectedDoctor = selectedDoctor;
+    patient.selectedTimeSlot = selectedTimeSlot;
+    await patient.save();
+
+    // Send the generated token as the response
+    return res.status(200).json({ token: newToken.toString() });
+
+  } catch (err) {
+    console.error("Error generating token:", err);
+    return res.status(500).json({ message: "Error generating token" });
+  }
+});
+
+
+
+
 app.delete("/api/patients/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Find and delete the patient by ID
-    const patient = await Patient.findByIdAndDelete(id);
+    const patient = await Patient.findOneAndUpdate(
+      { uniqueId: id },
+      { 
+        $set: { 
+          token: null,
+          selectedDoctor: null, // Clear selectedDoctor
+          selectedTimeSlot: null // Clear selectedTimeSlot
+        }
+      },
+      { new: true }  // Return the updated patient object
+    );
 
     if (!patient) {
       return res.status(404).json({ message: "Patient not found" });
     }
 
-    // Send success message
-    res.status(200).json({ message: "Patient deleted successfully" });
+    res.status(200).json({ message: "Patient's token and other fields cleared successfully", patient });
   } catch (err) {
-    res.status(500).json({ message: "Error deleting patient" });
+    console.error("Error clearing patient's fields:", err);
+    res.status(500).json({ message: "Error clearing patient's fields", error: err.message });
   }
 });
-app.post("/api/patient/register", async (req, res) => {
-  const { name, email, phone, selectedDoctor, selectedTimeSlot } = req.body;
 
-  try {
-    // Find the current token count for the doctor and time slot
-    let tokenEntry = await TokenCount.findOne({
-      doctorName: selectedDoctor,
-      timeSlot: selectedTimeSlot,
-    });
 
-    // If no token entry exists, initialize it with tokenCount as 1
-    if (!tokenEntry) {
-      tokenEntry = new TokenCount({
-        doctorName: selectedDoctor,
-        timeSlot: selectedTimeSlot,
-        tokenCount: 1, // Start from token 1
-      });
 
-      await tokenEntry.save(); // Save the new token entry to the database
-    } else {
-      // If there are no patients registered for this doctor and time slot,
-      // reset tokenCount to 1 if no patients exist.
-      const patientCount = await Patient.countDocuments({
-        selectedDoctor,
-        selectedTimeSlot,
-      });
 
-      if (patientCount === 0) {
-        tokenEntry.tokenCount = 1; // Reset to 1 if no patients exist
-        await tokenEntry.save();  // Save the reset token count
-      } else if (tokenEntry.tokenCount > 25) {
-        // If all tokens have been used
-        return res.status(400).json({ message: "All tokens for this time slot are used." });
-      }
-    }
 
-    // Assign the current token to the patient
-    const assignedToken = tokenEntry.tokenCount;
 
-    // Update the token count for the next patient (increment by 1)
-    tokenEntry.tokenCount += 1;
-    await tokenEntry.save();
-
-    // Create a new patient document with the assigned token
-    const newPatient = new Patient({
-      name,
-      email,
-      phone,
-      selectedDoctor,
-      selectedTimeSlot,
-      token: assignedToken,
-    });
-
-    await newPatient.save();
-
-    // Respond with success and the token
-    res.status(201).json({ message: "Patient registered successfully", token: assignedToken });
-  } catch (err) {
-    console.error("Error registering patient:", err);
-    res.status(500).json({ message: "Error registering patient" });
-  }
-});
 
 // Start Server
 app.listen(port, () => {

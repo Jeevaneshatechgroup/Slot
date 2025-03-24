@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Container, Row, Col, ListGroup, Alert, Button, Modal } from "react-bootstrap";
+import { Container, Row, Col, ListGroup, Alert, Button, Modal, Spinner } from "react-bootstrap";
 
 const NeurologyPage = () => {
   const [patients, setPatients] = useState([]);
@@ -8,7 +8,7 @@ const NeurologyPage = () => {
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(""); // State for success message
   const [deleteModalVisible, setDeleteModalVisible] = useState(false); // State for modal visibility
-  const [patientToDelete, setPatientToDelete] = useState(null); // State to hold patient id for deletion
+  const [selectedPatientId, setSelectedPatientId] = useState(null); // State to hold patient id for deletion
 
   useEffect(() => {
     const fetchNeurologyPatients = async () => {
@@ -27,22 +27,32 @@ const NeurologyPage = () => {
     fetchNeurologyPatients();
   }, []); // Empty dependency array, runs only once on mount
 
+  const handleDeleteClick = (uniqueId) => {
+    setSelectedPatientId(uniqueId);
+    setDeleteModalVisible(true);
+  };
+
   const deletePatient = async () => {
-    if (!patientToDelete) return;
-
     try {
-      const response = await axios.delete(`http://localhost:5000/api/patients/${patientToDelete}`);
-      setPatients(patients.filter((patient) => patient._id !== patientToDelete));
+      console.log("Clearing fields for patient with uniqueId:", selectedPatientId);
+      const response = await axios.delete(`http://localhost:5000/api/patients/${selectedPatientId}`);
+  
+      // Update the patient state to reflect the cleared fields
+      setPatients(patients.map((patient) =>
+        patient.uniqueId === selectedPatientId ? { 
+          ...patient, 
+          token: null, 
+          selectedDoctor: null, 
+          selectedTimeSlot: null 
+        } : patient
+      ));
+  
       setSuccessMessage(response.data.message);
-
-      setTimeout(() => {
-        setSuccessMessage("");
-      }, 3000);
-
-      setDeleteModalVisible(false); // Hide the modal after deletion
-      setPatientToDelete(null); // Reset the patient ID
+      setTimeout(() => setSuccessMessage(""), 3000);
+      setDeleteModalVisible(false);
     } catch (err) {
-      setError("Error deleting patient.");
+      console.error("Error clearing patient's fields:", err);
+      setError("Error clearing patient's fields.");
     }
   };
 
@@ -50,25 +60,23 @@ const NeurologyPage = () => {
     <Container className="mt-5">
       <h2 className="text-center mb-4">Dr. Mike Brown - Neurology Patients</h2>
 
-      {/* Loading or error message */}
-      {loading && <p>Loading patients...</p>}
+      {loading && (
+        <div className="d-flex justify-content-center">
+          <Spinner animation="border" />
+          <p className="ml-2">Loading patients...</p>
+        </div>
+      )}
       {error && <Alert variant="danger">{error}</Alert>}
-
-      {/* Display the success message if it's set */}
       {successMessage && <Alert variant="success">{successMessage}</Alert>}
 
-      {/* Fallback message if no patients are available */}
-      {patients.length === 0 && !loading && !error && (
-        <Alert variant="info">No patients available for Neurologist.</Alert>
-      )}
-
-      {/* Patient list */}
-      {patients.length > 0 && (
+      {patients.length === 0 && !loading && !error ? (
+        <Alert variant="info">No patients available for Neurology.</Alert>
+      ) : (
         <Row>
           <Col>
             <ListGroup>
               {patients.map((patient) => (
-                <ListGroup.Item key={patient._id}>
+                <ListGroup.Item key={patient.uniqueId}>
                   <h5>{patient.name}</h5>
                   <p>Email: {patient.email}</p>
                   <p>Phone: {patient.phone}</p>
@@ -76,12 +84,9 @@ const NeurologyPage = () => {
                   <p>Token: {patient.token}</p>
                   <Button
                     variant="success"
-                    onClick={() => {
-                      setPatientToDelete(patient._id);
-                      setDeleteModalVisible(true);
-                    }}
+                    onClick={() => handleDeleteClick(patient.uniqueId)} // Show modal when the delete button is clicked
                   >
-                    Patient Cleared
+                    Clear Token & Fields
                   </Button>
                 </ListGroup.Item>
               ))}
@@ -90,23 +95,25 @@ const NeurologyPage = () => {
         </Row>
       )}
 
-      {/* Modal for patient deletion confirmation */}
+      {/* Confirmation Modal */}
       <Modal show={deleteModalVisible} onHide={() => setDeleteModalVisible(false)}>
         <Modal.Header closeButton>
-          <Modal.Title>Confirm Attended Patient?</Modal.Title>
+          <Modal.Title>Confirm Clear Patient's Token and Fields</Modal.Title>
         </Modal.Header>
-        <Modal.Body>Are you sure you have attended this patient?</Modal.Body>
+        <Modal.Body>Are you sure you want to clear this patient's token, doctor, and time slot?</Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setDeleteModalVisible(false)}>
             Cancel
           </Button>
           <Button variant="success" onClick={deletePatient}>
-            clear
+            Clear Fields
           </Button>
         </Modal.Footer>
       </Modal>
     </Container>
   );
 };
+
+
 
 export default NeurologyPage;
